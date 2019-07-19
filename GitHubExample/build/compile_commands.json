@@ -1,0 +1,7 @@
+[
+{
+  "directory": "D:/Repos/OpenSimExample/GitHubExample/build",
+  "command": "\"D:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Tools\\MSVC\\14.16.27023\\bin\\Hostx64\\x64\\cl.exe\"  /nologo /TP  -ID:\\openSim\\opensim-source-install\\sdk\\include -ID:\\openSim\\opensim-source-install\\sdk\\include\\OpenSim -ID:\\openSim\\opensim_dependencies_install\\simbody\\include  /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O1 /Ob1 /DNDEBUG   /FoCMakeFiles\\main.dir\\src\\main.cpp.obj /FdTARGET_COMPILE_PDB /FS -c D:\\Repos\\OpenSimExample\\GitHubExample\\src\\main.cpp",
+  "file": "D:/Repos/OpenSimExample/GitHubExample/src/main.cpp"
+}
+]
