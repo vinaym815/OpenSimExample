@@ -1,9 +1,9 @@
-project(GitHubExample)
+project(GitHubExample,)
 
 cmake_minimum_required(VERSION 3.2)
 
 ## Lab_PC 	Lab_Linux	Laptop_PC	Laptop_Linux
-set(COMPUTER_SYSTEM "Lab_PC")
+set(COMPUTER_SYSTEM "Laptop_PC")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build)
@@ -30,6 +30,16 @@ elseif (COMPUTER_SYSTEM STREQUAL "Lab_Linux")
 
 	link_directories(
 		/home/vinay/OpenSim/opensim-source-install/lib64/)
+elseif (COMPUTER_SYSTEM STREQUAL "Laptop_PC")
+	include_directories(
+		D:/OpenSimAPI/opensim-core-source-install/sdk/include
+		D:/OpenSimAPI/opensim-core-source-install/sdk/include/OpenSim
+		D:/OpenSimAPI/opensim-core-source-install/sdk/Simbody/include)
+	
+	link_directories(
+		D:/OpenSimAPI/opensim-core-source-install/sdk/lib
+		D:/OpenSimAPI/opensim-core-source-install/sdk/Simbody/lib	
+	)
 endif()
 
 	
