@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<OpenSimDocument Version="40000">
+	<CustomJoint name="shoulder">
+		<!--Defines how the child body moves with respect to the parent as a function of the generalized coordinates.-->
+		<SpatialTransform>
+			<!--3 Axes for rotations are listed first.-->
+			<TransformAxis name="rotation1">
+				<!--Names of the coordinates that serve as the independent variables         of the transform function.-->
+				<coordinates>knee_angle_r</coordinates>
+				<!--Rotation or translation axis for the transform.-->
+				<axis>0 0 1</axis>
+			</TransformAxis>
+		</SpatialTransform>
+	</CustomJoint>
+</OpenSimDocument>
