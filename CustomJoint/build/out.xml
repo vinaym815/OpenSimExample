@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<OpenSimDocument Version="40000">
-	<TransformAxis name="rotation1">
-		<!--Names of the coordinates that serve as the independent variables         of the transform function.-->
-		<coordinates>knee_angle_r</coordinates>
-		<!--Rotation or translation axis for the transform.-->
-		<axis>0 0 1</axis>
-	</TransformAxis>
-</OpenSimDocument>

@@ -2,82 +2,58 @@
 
 int main() {
     OpenSim::Model model;
-    model.setName("bicep_curl");
+    model.setName("CustomJoinTut");
 
-    //// Create two point masses, of 1 kg
-    //OpenSim::Body* humerus = new OpenSim::Body("humerus", 1, SimTK::Vec3(0), SimTK::Inertia(0));
+    // Create two point masses, of 1 kg
+    OpenSim::Body* body1 = new OpenSim::Body("body1", 1, SimTK::Vec3(0), SimTK::Inertia(0));
 
-    //// Add display geometry.
-    //OpenSim::Ellipsoid bodyGeometry(0.1, 0.5, 0.1);
-    //bodyGeometry.setColor(SimTK::Gray);
-    //// Attach an ellipsoid to a frame located at the center of each body.
-    //OpenSim::PhysicalOffsetFrame* humerusCenter = new OpenSim::PhysicalOffsetFrame(
-    //    "humerusCenter", *humerus, SimTK::Transform(SimTK::Vec3(0, 0.5, 0)));
-    //humerus->addComponent(humerusCenter);
-    //humerusCenter->attachGeometry(bodyGeometry.clone());
+    // Add display geometry.
+    OpenSim::Ellipsoid bodyGeometry(0.1, 0.5, 0.1);
+    bodyGeometry.setColor(SimTK::Gray);
 
-    //model.addBody(humerus);
+    // Attach an ellipsoid to a frame located at the center of each body.
+    OpenSim::PhysicalOffsetFrame* body1Center = new OpenSim::PhysicalOffsetFrame(
+        "body1Center", *body1, SimTK::Transform(SimTK::Vec3(0, 0.5, 0)));
+    body1->addComponent(body1Center);
+    body1Center->attachGeometry(bodyGeometry.clone());
+    model.addBody(body1);
 
-
-    OpenSim::Coordinate* knee_angle_r = new OpenSim::Coordinate();
-    knee_angle_r->setDefaultValue(0);
-    knee_angle_r->setDefaultSpeedValue(0);
+    // Coordinate for actuating the custom joint 
+    OpenSim::Coordinate* q1 = new OpenSim::Coordinate();
+    q1->setName("q1");
+    q1->setDefaultValue(0);
+    q1->setDefaultSpeedValue(0);
     double Range[2] = {-2.0943951, 0.17453293};
-    knee_angle_r->setRange(Range);
+    q1->setRange(Range);
 
+    // Array of coordinate names required by TransformAxis 
+    OpenSim::Array<std::string> coordNames = OpenSim::Array<std::string>();
+    coordNames.append(q1->getName());
 
-    //std::cout << knee_angle_r->getName() << std::endl;
-    //std::cout << knee_angle_r->getRangeMax() << std::endl;
-    ////model.addComponent(knee_angle_r);
+    // TransformAxis for Spatial Transform
+    OpenSim::TransformAxis *axis1 = new OpenSim::TransformAxis(coordNames, SimTK::Vec3(1,0,0));
+    OpenSim::LinearFunction *func1 = new OpenSim::LinearFunction(1, 0);
+    axis1->setFunction(func1);
 
-    //OpenSim::Constant zero(0);
-    //OpenSim::Array<std::string> emptyArray = OpenSim::Array<std::string>();
+    // Spatial Transform for the Custom Joint
+    OpenSim::SpatialTransform *SpTrans = new OpenSim::SpatialTransform();
+    SpTrans->set_rotation1(*axis1);
 
-    //OpenSim::Array<std::string> coordNames = OpenSim::Array<std::string>();
-    //coordNames.append("knee_angle_r");
+    // Custom joint between ground and body 1
+    OpenSim::CustomJoint* customJoint = new OpenSim::CustomJoint("customJoint", model.getGround(), *body1, *SpTrans);
 
-    //OpenSim::TransformAxis *axis1 = new OpenSim::TransformAxis(coordNames, SimTK::Vec3(1,0,0));
-    //axis1->setName("rotation1");
-    //OpenSim::LinearFunction *func1 = new OpenSim::LinearFunction(1, 0);
-    //axis1->setFunction(func1);
+    // Giving the ownership of coordinate q1 to Custom Joint
+    customJoint->append_coordinates(*q1);
 
-    //OpenSim::TransformAxis *axis2 = new OpenSim::TransformAxis(emptyArray, SimTK::Vec3(0,1,0));
-    //axis2->setName("rotation2");
-    //axis2->setFunction(zero);
+    // Adding custom joint to the model
+    model.addJoint(customJoint);
 
-    //OpenSim::TransformAxis *axis3 = new OpenSim::TransformAxis(emptyArray, SimTK::Vec3(0,0,1));
-    //axis3->setName("rotation3");
-    //axis3->setFunction(zero);
-
-    //OpenSim::TransformAxis *translationX = new OpenSim::TransformAxis(emptyArray, SimTK::Vec3(1,0,0));
-    //translationX->setName("translationX");
-    //translationX->setFunction(zero);
-
-    //OpenSim::TransformAxis *translationY = new OpenSim::TransformAxis(emptyArray, SimTK::Vec3(0,1,0));
-    //translationY->setName("translationY");
-    //translationY->setFunction(zero);
-
-    //OpenSim::TransformAxis *translationZ = new OpenSim::TransformAxis(emptyArray, SimTK::Vec3(0,0,1));
-    //translationZ->setName("translationZ");
-    //translationZ->setFunction(zero);
-
-    //OpenSim::SpatialTransform *Vinay = new OpenSim::SpatialTransform();
-    //Vinay->set_rotation1(*axis1);
-    //Vinay->set_rotation2(*axis2);
-    //Vinay->set_rotation3(*axis3);
-    //Vinay->set_translation1(*translationX);
-    //Vinay->set_translation2(*translationY);
-    //Vinay->set_translation3(*translationZ);
-
-    //OpenSim::CustomJoint* shoulder = new OpenSim::CustomJoint("shoulder", model.getGround(), *humerus, *Vinay);
-    //model.addJoint(shoulder);
-
+    // Finalizing the models and printing it
     model.finalizeConnections();
     model.print("customjoint.osim");
 
     //model.setUseVisualizer(true);
     //SimTK::State& state = model.initSystem();
-
     //OpenSim::Manager manager(model);
     //manager.setIntegratorAccuracy(1e-4);
     //manager.initialize(state);
