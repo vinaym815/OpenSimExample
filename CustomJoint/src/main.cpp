@@ -4,7 +4,7 @@ int main() {
     OpenSim::Model model;
     model.setName("CustomJoinTut");
 
-    // Create two point masses, of 1 kg
+    // Create a point masses, of 1 kg
     OpenSim::Body* body1 = new OpenSim::Body("body1", 1, SimTK::Vec3(0), SimTK::Inertia(0));
 
     // Add display geometry.
@@ -21,10 +21,10 @@ int main() {
     // Coordinate for actuating the custom joint 
     OpenSim::Coordinate* q1 = new OpenSim::Coordinate();
     q1->setName("q1");
-    q1->setDefaultValue(-0.01);
-    q1->setDefaultSpeedValue(0);
-    double Range[2] = {-2.0943951, 0.17453293};
-    q1->setRange(Range);
+    //q1->setDefaultValue(0);
+    //q1->setDefaultSpeedValue(0);
+    //double Range[2] = {-2.0943951, 0.17453293};
+    //q1->setRange(Range);
 
     // Array of coordinate names required by TransformAxis 
     OpenSim::Array<std::string> coordNames = OpenSim::Array<std::string>();
@@ -53,15 +53,16 @@ int main() {
     model.print("customjoint.osim");
 
     // Running a small simulation
+    double initialTime = 0, finalTime = 4;
     model.setUseVisualizer(true);
     SimTK::State& state = model.initSystem();
 
     OpenSim::Manager manager(model);
-    manager.setIntegratorAccuracy(1e-4);
+    manager.setIntegratorAccuracy(1.0e-4);
 
-    state.setTime(0);
+    state.setTime(initialTime);
     manager.initialize(state);
-    manager.integrate(1);
+    manager.integrate(finalTime);
 
     std::cout << "Everything ran fine. \nPress enter to exit." << std::endl;
     std::cout << std::cin.get() << std::endl;
