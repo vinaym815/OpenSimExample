@@ -1,17 +1,19 @@
 #include <OpenSim/OpenSim.h>
 
 int main() {
+
+    // Creating the model
     OpenSim::Model model;
     model.setName("CustomJoinTut");
 
     // Create a point masses, of 1 kg
     OpenSim::Body* body1 = new OpenSim::Body("body1", 1, SimTK::Vec3(0), SimTK::Inertia(0));
 
-    // Add display geometry.
+    // Adding display geometry.
     OpenSim::Ellipsoid bodyGeometry(0.1, 0.5, 0.1);
     bodyGeometry.setColor(SimTK::Gray);
 
-    // Attach an ellipsoid to a frame located at the center of each body.
+    // Attaching an ellipsoid to a frame located at the center of body1.
     OpenSim::PhysicalOffsetFrame* body1Center = new OpenSim::PhysicalOffsetFrame(
         "body1Center", *body1, SimTK::Transform(SimTK::Vec3(0, 0.5, 0)));
     body1->addComponent(body1Center);
@@ -39,12 +41,14 @@ int main() {
     OpenSim::SpatialTransform *SpTrans = new OpenSim::SpatialTransform();
     SpTrans->set_rotation1(*axis1);
 
+    // Vectors to position the Custom Joint 
     SimTK::Vec3 locationInParent(0, 0, 0), orientationInParent(0), locationInBody(0, 1, 0), orientationInBody(0);
+
     // Custom joint between ground and body 1
     OpenSim::CustomJoint* customJoint = new OpenSim::CustomJoint("customJoint", model.getGround(), 
     locationInParent, orientationInParent, *body1, locationInBody, orientationInBody, *SpTrans);
 
-    // Giving the ownership of coordinate q1 to Custom Joint
+    // Giving the ownership of the coordinate q1 to Custom Joint
     customJoint->append_coordinates(*q1);
 
     // Adding custom joint to the model
