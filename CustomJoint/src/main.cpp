@@ -21,7 +21,7 @@ int main() {
     // Coordinate for actuating the custom joint 
     OpenSim::Coordinate* q1 = new OpenSim::Coordinate();
     q1->setName("q1");
-    q1->setDefaultValue(0);
+    q1->setDefaultValue(-0.01);
     q1->setDefaultSpeedValue(0);
     double Range[2] = {-2.0943951, 0.17453293};
     q1->setRange(Range);
@@ -52,12 +52,16 @@ int main() {
     model.finalizeConnections();
     model.print("customjoint.osim");
 
-    //model.setUseVisualizer(true);
-    //SimTK::State& state = model.initSystem();
-    //OpenSim::Manager manager(model);
-    //manager.setIntegratorAccuracy(1e-4);
-    //manager.initialize(state);
-    //manager.integrate(1e-4);
+    // Running a small simulation
+    model.setUseVisualizer(true);
+    SimTK::State& state = model.initSystem();
+
+    OpenSim::Manager manager(model);
+    manager.setIntegratorAccuracy(1e-4);
+
+    state.setTime(0);
+    manager.initialize(state);
+    manager.integrate(1);
 
     std::cout << "Everything ran fine. \nPress enter to exit." << std::endl;
     std::cout << std::cin.get() << std::endl;

@@ -281,7 +281,6 @@ int main()
         si.setTime(initialTime);
         manager.initialize(si);
         manager.integrate(finalTime);
-        manager.integrate(finalTime);
 		
         // SAVE THE RESULTS TO FILE //
         // Save the model states from forward integration
