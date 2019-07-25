@@ -21,10 +21,10 @@ int main() {
     // Coordinate for actuating the custom joint 
     OpenSim::Coordinate* q1 = new OpenSim::Coordinate();
     q1->setName("q1");
-    //q1->setDefaultValue(0);
-    //q1->setDefaultSpeedValue(0);
-    //double Range[2] = {-2.0943951, 0.17453293};
-    //q1->setRange(Range);
+    q1->setDefaultValue(-0.4);
+    q1->setDefaultSpeedValue(0);
+    double Range[2] = {-2.0943951, 0.47453293};
+    q1->setRange(Range);
 
     // Array of coordinate names required by TransformAxis 
     OpenSim::Array<std::string> coordNames = OpenSim::Array<std::string>();
@@ -39,8 +39,10 @@ int main() {
     OpenSim::SpatialTransform *SpTrans = new OpenSim::SpatialTransform();
     SpTrans->set_rotation1(*axis1);
 
+    SimTK::Vec3 locationInParent(0, 0, 0), orientationInParent(0), locationInBody(0, 1, 0), orientationInBody(0);
     // Custom joint between ground and body 1
-    OpenSim::CustomJoint* customJoint = new OpenSim::CustomJoint("customJoint", model.getGround(), *body1, *SpTrans);
+    OpenSim::CustomJoint* customJoint = new OpenSim::CustomJoint("customJoint", model.getGround(), 
+    locationInParent, orientationInParent, *body1, locationInBody, orientationInBody, *SpTrans);
 
     // Giving the ownership of coordinate q1 to Custom Joint
     customJoint->append_coordinates(*q1);
