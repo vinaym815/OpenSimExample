@@ -1,6 +1,16 @@
 #include <OpenSim/OpenSim.h>
+#include <string>
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    //Final Simulation Time
+    double finalTime = 3;
+
+    if (argc>1){
+        finalTime = std::stof(argv[1]);
+    }
+
+    double initialTime = 0;
 
     // Creating the model
     OpenSim::Model model;
@@ -59,7 +69,6 @@ int main() {
     model.print("customjoint.osim");
 
     // Running a small simulation
-    double initialTime = 0, finalTime = 4;
     model.setUseVisualizer(true);
     SimTK::State& state = model.initSystem();
 
