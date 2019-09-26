@@ -1,3 +1,7 @@
+# Using this code you can interactively program baxter waypoints to baxter
+# robot and replay them as many times as required.
+# This code was written for NHK TV demonstration 
+
 import rospy, baxter_interface
 
 class Assist:
