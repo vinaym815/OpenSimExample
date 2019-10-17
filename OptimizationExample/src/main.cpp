@@ -80,8 +80,7 @@ private:
     int numControls;
     State& si;
     Model& osimModel;
- //   SimTK::ReferencePtr<RungeKuttaMersonIntegrator> p_integrator;
-
+    SimTK::ReferencePtr<RungeKuttaMersonIntegrator> p_integrator;
  };
 
 //______________________________________________________________________________
@@ -141,6 +140,7 @@ int main()
         // Create an optimizer. Pass in our OptimizerSystem
         // and the name of the optimization algorithm.
         Optimizer opt(sys, SimTK::LBFGSB);
+        //Optimizer opt(sys, SimTK::CMAES);
         //Optimizer opt(sys, InteriorPoint);
 
         // Specify settings for the optimizer
