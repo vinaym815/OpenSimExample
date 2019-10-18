@@ -43,7 +43,7 @@ elseif (COMPUTER_SYSTEM STREQUAL "Laptop_PC")
 endif()
 
 	
-add_executable(main ${PROJECT_SOURCE_DIR}/main2.cpp)
+add_executable(main ${PROJECT_SOURCE_DIR}/main.cpp)
 
 target_link_libraries( main
 debug osimActuators_d optimized osimActuators 

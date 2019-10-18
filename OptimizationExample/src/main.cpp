@@ -9,7 +9,6 @@
 //==============================================================================
 #include <OpenSim/OpenSim.h>
 #include "OpenSim/Common/STOFileAdapter.h"
-#include <ctime>  // clock(), clock_t, CLOCKS_PER_SEC
 
 using namespace OpenSim;
 using namespace SimTK;
@@ -18,8 +17,10 @@ using namespace std;
 // Global variables to define integration time window, optimizer step count,
 // the best solution.
 int stepCount = 0;
+const int segs = 2;
 const double initialTime = 0.0;
 const double finalTime = 0.25;
+const double xT[segs] = {0.125, 0.2};
 const double desired_accuracy = 1.0e-5;
 double bestSoFar = Infinity;
 
@@ -28,9 +29,9 @@ public:
     /* Constructor class. Parameters passed are accessed in the objectiveFunc() class. */
     ExampleOptimizationSystem(int numParameters, State& s, Model& aModel):
         OptimizerSystem(numParameters),
-        numControls(numParameters),
         si(s),
-        osimModel(aModel)
+        osimModel(aModel),
+        numCoeffs(numParameters)
     {}
 
     int objectiveFunc(const Vector &newControls,
@@ -40,15 +41,20 @@ public:
         State s = si;
 
         // Update the control values
-        osimModel.updDefaultControls() = newControls;
+        PrescribedController *muscleController = dynamic_cast<PrescribedController*>(&osimModel.updControllerSet()[0]);
+        FunctionSet &funcSet = muscleController->upd_ControlFunctions();
+        for(int i=0; i<funcSet.getSize(); i++){
+            PiecewiseConstantFunction *func = dynamic_cast<PiecewiseConstantFunction*>(&funcSet[i]);
+            for(int j=0; j<segs ; j++){
+                func->setY(j, newControls[i*segs+j]);
+            }
+        }
 
         // Integrate from initial time to final time
         Manager manager(osimModel);
         manager.setIntegratorAccuracy(desired_accuracy);
         s.setTime(initialTime);
-
         osimModel.getMultibodySystem().realize(s, Stage::Acceleration);
-
         manager.initialize(s);
         s = manager.integrate(finalTime);
 
@@ -68,8 +74,12 @@ public:
         //  optimization step if it is better than a previous result.
         if(f < bestSoFar) {
             bestSoFar = f;
-            cout << "\nobjective evaluation #: " << stepCount << "  controls = "
-                 << newControls <<  " bestSoFar = " << f << std::endl;
+            cout << "\nobjective evaluation #: " << stepCount <<  " bestSoFar = " << f << std::endl;
+            //for (int i=0; i<numCoeffs; i++)
+            //{
+            //    std::cout << newControls[i] << ", ";
+            //}
+            //std::cout<< std::endl;
         }
 
       return 0;
@@ -77,11 +87,10 @@ public:
    }
 
 private:
-    int numControls;
     State& si;
     Model& osimModel;
-    SimTK::ReferencePtr<RungeKuttaMersonIntegrator> p_integrator;
- };
+    int numCoeffs;
+};
 
 //______________________________________________________________________________
 /**
@@ -91,8 +100,6 @@ private:
 int main()
 {
     try {
-        std::clock_t startTime = std::clock();
-
         // Use Millard2012Equilibrium muscles with rigid tendons for better
         // performance.
         Object::renameType("Thelen2003Muscle", "Millard2012EquilibriumMuscle");
@@ -101,6 +108,49 @@ int main()
         // but without wrapping surfaces for better performance.
         Model osimModel("Arm26_Optimize.osim");
 		osimModel.setUseVisualizer(true);
+
+
+
+        /////////////////////////////////////
+        /////// Adding new controller //////
+        //////////////////////////////////// 
+
+        OpenSim::Set<Actuator> actuators = osimModel.getActuators();
+        const int numActuators = actuators.getSize(); 
+
+        // Creating an array and Vector of activations 
+        double yVal[segs] = {0.3, 0.7};
+        int numCoeffs = numActuators*segs;
+        SimTK::Vector coeffs(numCoeffs);
+        double **activMatrix = new double*[(size_t)numActuators];
+        for(int i=0; i<(int)numActuators; i++){
+            activMatrix[i] = new double[segs];
+        }
+
+        for(int i=0; i<(int)numActuators; i++){
+            for(int j=0; j<segs; j++){
+                activMatrix[i][j] = yVal[j];
+                coeffs[i*segs+j] = yVal[j];
+            }
+        }
+
+        PrescribedController *muscleController = new PrescribedController();
+        muscleController->setActuators(osimModel.updActuators());
+        muscleController->setName("MuscleController");
+
+        for(int i=0; i<numActuators; i++){
+            muscleController->prescribeControlForActuator( actuators[i].getName(), 
+                                new PiecewiseConstantFunction(segs, xT, 
+                                activMatrix[i], "ActivationSignal"));
+        }
+
+        osimModel.addController(muscleController);
+        osimModel.finalizeConnections();
+
+
+        /////////////////////////////////////////
+        ///// Setting up Initial State  /////////
+        /////////////////////////////////////////
 
         // Initialize the system and get the state representing the state system
         State& si = osimModel.initSystem();
@@ -118,22 +168,18 @@ int main()
 
         // Make sure the muscles states are in equilibrium
         osimModel.equilibrateMuscles(si);
+        std::cout << "Everything Ran Fine" << std::endl;
 
-        // The number of controls will equal the number of muscles in the model!
-        int numControls = osimModel.getNumControls();
-
+        ///////////////////////////
+        ///// Optimization ////////
+        ///////////////////////////
         // Initialize the optimizer system we've defined.
-        ExampleOptimizationSystem sys(numControls, si, osimModel);
+        ExampleOptimizationSystem sys(numCoeffs, si, osimModel);
         Real f = NaN;
 
-        /* Define initial values and bounds for the controls to optimize */
-        Vector controls(numControls, 0.02);
-        controls[3] = 0.99;
-        controls[4] = 0.99;
-        controls[5] = 0.99;
-
-        Vector lower_bounds(numControls, 0.01);
-        Vector upper_bounds(numControls, 0.99);
+        /* Defining the bounds for the coefficients */
+        Vector lower_bounds(numCoeffs, 0.01);
+        Vector upper_bounds(numCoeffs, 0.99);
 
         sys.setParameterLimits( lower_bounds, upper_bounds );
 
@@ -141,52 +187,52 @@ int main()
         // and the name of the optimization algorithm.
         Optimizer opt(sys, SimTK::LBFGSB);
         //Optimizer opt(sys, SimTK::CMAES);
-        //Optimizer opt(sys, InteriorPoint);
 
         // Specify settings for the optimizer
-        opt.setConvergenceTolerance(0.1);
+        opt.setConvergenceTolerance(0.001);
         opt.useNumericalGradient(true, desired_accuracy);
-        opt.setMaxIterations(2);
+        opt.setMaxIterations(4);
         opt.setLimitedMemoryHistory(500);
 
         // Optimize it!
-        f = opt.optimize(controls);
+        f = opt.optimize(coeffs);
 
-        cout << "Elapsed time = " << (std::clock()-startTime)/CLOCKS_PER_SEC << "s" << endl;
+        /////////////////////////////////////
+        //// Simulating best results ////////
+        /////////////////////////////////////
 
-        const Set<Actuator>& actuators = osimModel.getActuators();
-        for(int i=0; i<actuators.getSize(); ++i){
-            cout << actuators[i].getName() << " control value = " << controls[i] << endl;
+        std::cout << "Press Enter To Run"  << std::endl;
+        std::cout << std::cin.get();
+        FunctionSet &funcSet = muscleController->upd_ControlFunctions();
+        for(int i=0; i<funcSet.getSize(); i++){
+            PiecewiseConstantFunction *func = dynamic_cast<PiecewiseConstantFunction*>(&funcSet[i]);
+            for(int j=0; j<segs ; j++){
+                func->setY(j, coeffs[i*segs+j]);
+            }
         }
 
-        cout << "\nMaximum hand velocity = " << -f << "m/s" << endl;
+       Manager manager(osimModel);
+       manager.setIntegratorAccuracy(desired_accuracy);
+       si.setTime(initialTime);
+       manager.initialize(si);
+       si = manager.integrate(finalTime);
 
-        cout << "OpenSim example completed successfully." << endl;
+       cout << "\nMaximum hand velocity = " << -f << "m/s" << endl;
+       cout << "OpenSim example completed successfully." << endl;
 
-        // Dump out optimization results to a text file for testing
-        ofstream ofile;
-        ofile.open("Arm26_optimization_result");
-        for(int i=0; i<actuators.getSize(); ++i)
-            ofile << controls[i] << endl;
-        ofile << -f <<endl;
-        ofile.close();
-
-        // Re-run simulation with optimal controls.
-		cout << "Press Enter to rerun the best trial" << endl;
-		cout << cin.get() << endl;
-        Manager manager(osimModel);
-        manager.setIntegratorAccuracy(desired_accuracy);
-        osimModel.updDefaultControls() = controls;
-
-        // Integrate from initial time to final time.
-        si.setTime(initialTime);
-        osimModel.getMultibodySystem().realize(si, Stage::Acceleration);
-        
-        manager.initialize(si);
-        si = manager.integrate(finalTime);
-
-        auto statesTable = manager.getStatesTable();
-        STOFileAdapter_<double>::write(statesTable,
+       // Dump out optimization results to a text file for testing
+       ofstream ofile;
+       ofile.open("Arm26_optimization_result");
+       for(int i=0; i<numActuators; i++){
+            for (int j=0; j<segs; j++){
+                ofile << coeffs[i*segs+j] << " ";
+            }
+            ofile << endl;
+       }
+       ofile << -f <<endl;
+       ofile.close();
+       auto statesTable = manager.getStatesTable();
+       STOFileAdapter_<double>::write(statesTable,
                                       "Arm26_optimized_states.sto");
     }
     catch (const std::exception& ex)

@@ -18,43 +18,54 @@ int main()
     /////// Adding new controller //////
     //////////////////////////////////// 
 
-    PrescribedController *muscleController = new PrescribedController();
-    muscleController->setActuators(osimModel.updActuators());
-    muscleController->setName("MuscleController");
+    const int segs = 2;
     OpenSim::Set<Actuator> actuators = osimModel.getActuators();
     const int numActuators = actuators.getSize(); 
+    const int numCoeffs = numActuators*segs;
 
-    for(int i=0; i<numActuators; i++){
-        muscleController->prescribeControlForActuator( actuators[i].getName(), new PiecewiseConstantFunction());
-    }
-
-    osimModel.addController(muscleController);
-    osimModel.finalizeConnections();
-
-    //////////////////////////////////////////
-    //// Setting up Controller Parameters ///
-    /////////////////////////////////////////
-
-    const int segs = 2;
-    SimTK::Matrix coeffs(numActuators, segs);
-
+    SimTK::Vector coeffs(numCoeffs);
     double xT[segs] = {0.1, 0.2};
     double yVal[segs] = {0.3, 0.7};
 
+    double **activMatrix = new double*[(size_t)numActuators];
+    for(int i=0; i<numActuators; i++){
+        activMatrix[i] = new double[segs];
+    }
+
     for(int i=0; i<numActuators; i++){
         for(int j=0; j<segs; j++){
-            coeffs[i][j] = yVal[j];
+            activMatrix[i][j] = yVal[j];
+            coeffs[i*segs+j] = yVal[j];
         }
     }
 
-    FunctionSet &funcSet = muscleController->upd_ControlFunctions();
+    PrescribedController *muscleController = new PrescribedController();
+    muscleController->setActuators(osimModel.updActuators());
+    muscleController->setName("MuscleController");
+
     for(int i=0; i<numActuators; i++){
-        PiecewiseConstantFunction *func = dynamic_cast<PiecewiseConstantFunction*>(&funcSet[i]);
-        std::cout << i << std::endl;
-        for(int j=0; j<segs ; j++){
-            func->addPoint(xT[j], coeffs[i][j]);
-        }
+        muscleController->prescribeControlForActuator( actuators[i].getName(), 
+                            new PiecewiseConstantFunction(segs, xT, 
+                            activMatrix[i], "ActivationSignal"));
     }
+
+
+    // Creating activation functions from matrix
+    // Use setX and setY to change the values at later point
+
+    //osimModel.addController(muscleController);
+    //osimModel.finalizeConnections();
+
+    //OpenSim::PrescribedController *handleController = dynamic_cast<PrescribedController*>(&osimModel.updControllerSet()[0]);
+
+    //std::cout << handleController->getName() << std::endl;
+    //FunctionSet &funcSet = handleController->upd_ControlFunctions();
+    //for(int i=0; i<numActuators; i++){
+    //    PiecewiseConstantFunction *func = dynamic_cast<PiecewiseConstantFunction*>(&funcSet[i]);
+    //    for(int j=0; j<segs ; j++){
+    //        func->setY(j, coeffs[i*segs+j]/2);
+    //    }
+    //}
 
     /////////////////////////////////////////
     ///// Setting up Initial State  /////////
@@ -91,7 +102,7 @@ int main()
     manager.initialize(si);
     si = manager.integrate(finalTime);
     auto statesTable = manager.getStatesTable();
-    STOFileAdapter_<double>::write(statesTable, "Arm26_optimized_states.sto");
+    STOFileAdapter_<double>::write(statesTable, "testing.sto");
 
     std::cout << "Everything Ran Fine" << std::endl;
 }
