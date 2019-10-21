@@ -23,17 +23,25 @@ int main()
     const int numActuators = actuators.getSize(); 
     const int numCoeffs = numActuators*segs;
 
-    SimTK::Vector coeffs(numCoeffs);
+    SimTK::Vector coeffs(2*numCoeffs);
     double xT[segs] = {0.1, 0.2};
     double yVal[segs] = {0.3, 0.7};
 
+    // Matrix that contains the activation
     double **activMatrix = new double*[(size_t)numActuators];
     for(int i=0; i<numActuators; i++){
         activMatrix[i] = new double[segs];
     }
 
+    // Matrix that contains the time for different activations levels
+    double **DtMatrix = new double*[(size_t)numActuators];
+    for(int i=0; i<numActuators; i++){
+        DtMatrix[i] = new double[segs];
+    }
+
     for(int i=0; i<numActuators; i++){
         for(int j=0; j<segs; j++){
+            DtMatrix[i][j] = xT[j];
             activMatrix[i][j] = yVal[j];
             coeffs[i*segs+j] = yVal[j];
         }
@@ -45,16 +53,13 @@ int main()
 
     for(int i=0; i<numActuators; i++){
         muscleController->prescribeControlForActuator( actuators[i].getName(), 
-                            new PiecewiseConstantFunction(segs, xT, 
+                            new PiecewiseLinearFunction(segs, xT, 
                             activMatrix[i], "ActivationSignal"));
     }
 
 
-    // Creating activation functions from matrix
-    // Use setX and setY to change the values at later point
-
-    //osimModel.addController(muscleController);
-    //osimModel.finalizeConnections();
+    osimModel.addController(muscleController);
+    osimModel.finalizeConnections();
 
     //OpenSim::PrescribedController *handleController = dynamic_cast<PrescribedController*>(&osimModel.updControllerSet()[0]);
 

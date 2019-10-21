@@ -1,4 +1,4 @@
-﻿/* -------------------------------------------------------------------------- *
+/* -------------------------------------------------------------------------- *
  *  Example of an OpenSim program that optimizes the performance of a model.
  *  The main() loads the arm26 model and maximizes the forward velocity of
  *  the hand during a muscle-driven forward simulation by finding the set
@@ -21,6 +21,7 @@ const int segs = 2;
 const double initialTime = 0.0;
 const double finalTime = 0.25;
 const double xT[segs] = {0.125, 0.2};
+const double yVal[segs] = {0.3, 0.7};
 const double desired_accuracy = 1.0e-5;
 double bestSoFar = Infinity;
 
@@ -46,7 +47,8 @@ public:
         for(int i=0; i<funcSet.getSize(); i++){
             PiecewiseConstantFunction *func = dynamic_cast<PiecewiseConstantFunction*>(&funcSet[i]);
             for(int j=0; j<segs ; j++){
-                func->setY(j, newControls[i*segs+j]);
+                func->setX(j, newControls[2*i+j]);
+                func->setY(j, newControls[(2*i+1)*segs+j]);
             }
         }
 
@@ -75,11 +77,11 @@ public:
         if(f < bestSoFar) {
             bestSoFar = f;
             cout << "\nobjective evaluation #: " << stepCount <<  " bestSoFar = " << f << std::endl;
-            //for (int i=0; i<numCoeffs; i++)
-            //{
-            //    std::cout << newControls[i] << ", ";
-            //}
-            //std::cout<< std::endl;
+            for (int i=0; i<numCoeffs; i++)
+            {
+                std::cout << newControls[i] << ", ";
+            }
+            std::cout<< std::endl;
         }
 
       return 0;
@@ -109,8 +111,6 @@ int main()
         Model osimModel("Arm26_Optimize.osim");
 		osimModel.setUseVisualizer(true);
 
-
-
         /////////////////////////////////////
         /////// Adding new controller //////
         //////////////////////////////////// 
@@ -118,10 +118,16 @@ int main()
         OpenSim::Set<Actuator> actuators = osimModel.getActuators();
         const int numActuators = actuators.getSize(); 
 
-        // Creating an array and Vector of activations 
-        double yVal[segs] = {0.3, 0.7};
-        int numCoeffs = numActuators*segs;
+        // Creating an array and Vector of time intervals and activations 
+        int numCoeffs = 2*numActuators*segs;
+
+        // Coeffs structure (M1t1 M1t2 M1t3 ....  M1tSegs  M1a1 M1a2 ...... M1aSeg M2t1......)
         SimTK::Vector coeffs(numCoeffs);
+
+        double **DtMatrix = new double*[(size_t)numActuators];
+        for(int i=0; i<(int)numActuators; i++){
+            DtMatrix[i] = new double[segs];
+        }
         double **activMatrix = new double*[(size_t)numActuators];
         for(int i=0; i<(int)numActuators; i++){
             activMatrix[i] = new double[segs];
@@ -129,8 +135,10 @@ int main()
 
         for(int i=0; i<(int)numActuators; i++){
             for(int j=0; j<segs; j++){
+                DtMatrix[i][j] = xT[j];
                 activMatrix[i][j] = yVal[j];
-                coeffs[i*segs+j] = yVal[j];
+                coeffs[2*i*segs+j] = xT[j];
+                coeffs[(2*i+1)*segs+j] = yVal[j];
             }
         }
 
@@ -140,7 +148,7 @@ int main()
 
         for(int i=0; i<numActuators; i++){
             muscleController->prescribeControlForActuator( actuators[i].getName(), 
-                                new PiecewiseConstantFunction(segs, xT, 
+                                new PiecewiseConstantFunction(segs, DtMatrix[i], 
                                 activMatrix[i], "ActivationSignal"));
         }
 
@@ -178,8 +186,16 @@ int main()
         Real f = NaN;
 
         /* Defining the bounds for the coefficients */
-        Vector lower_bounds(numCoeffs, 0.01);
-        Vector upper_bounds(numCoeffs, 0.99);
+        SimTK::Vector lower_bounds(numCoeffs);
+        SimTK::Vector upper_bounds(numCoeffs);
+        for(int i=0; i<(int)numActuators; i++){
+            for(int j=0; j<segs; j++){
+                lower_bounds[2*i*segs+j] = 0.01;
+                lower_bounds[(2*i+1)*segs+j] = 0.01;
+                upper_bounds[2*i*segs+j] = 0.125;
+                upper_bounds[(2*i+1)*segs+j] = 0.99;
+            }
+        }
 
         sys.setParameterLimits( lower_bounds, upper_bounds );
 
