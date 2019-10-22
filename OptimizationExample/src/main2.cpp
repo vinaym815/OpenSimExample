@@ -1,3 +1,6 @@
+// Using it primarily for debugging purposes
+
+
 #include <OpenSim/OpenSim.h>
 #include<iostream>
 
@@ -7,7 +10,7 @@ using namespace std;
 
 const double initialTime = 0.0;
 const double finalTime = 0.25;
-const double desired_accuracy = 1.0e-5;
+const double desiredAccuracy = 1.0e-5;
 
 int main()
 {
@@ -21,29 +24,18 @@ int main()
     const int segs = 2;
     OpenSim::Set<Actuator> actuators = osimModel.getActuators();
     const int numActuators = actuators.getSize(); 
-    const int numCoeffs = numActuators*segs;
+    const int numVars = 2*numActuators*segs;
 
-    SimTK::Vector coeffs(2*numCoeffs);
-    double xT[segs] = {0.1, 0.2};
+    double xT[segs] = {0.1, 0.14};
     double yVal[segs] = {0.3, 0.7};
 
-    // Matrix that contains the activation
-    double **activMatrix = new double*[(size_t)numActuators];
-    for(int i=0; i<numActuators; i++){
-        activMatrix[i] = new double[segs];
-    }
-
-    // Matrix that contains the time for different activations levels
-    double **DtMatrix = new double*[(size_t)numActuators];
-    for(int i=0; i<numActuators; i++){
-        DtMatrix[i] = new double[segs];
-    }
+    // Array of activations targets
+    SimTK::Vector vecVars(numVars);
 
     for(int i=0; i<numActuators; i++){
         for(int j=0; j<segs; j++){
-            DtMatrix[i][j] = xT[j];
-            activMatrix[i][j] = yVal[j];
-            coeffs[i*segs+j] = yVal[j];
+            vecVars[2*i*segs+j] = xT[j];
+            vecVars[(2*i+1)*segs+j] = yVal[j];
         }
     }
 
@@ -53,22 +45,22 @@ int main()
 
     for(int i=0; i<numActuators; i++){
         muscleController->prescribeControlForActuator( actuators[i].getName(), 
-                            new PiecewiseLinearFunction(segs, xT, 
-                            activMatrix[i], "ActivationSignal"));
+                            new PiecewiseConstantFunction(segs, &vecVars[2*i*segs], 
+                            &vecVars[(2*i+1)*segs], "ActivationSignal"));
     }
-
 
     osimModel.addController(muscleController);
     osimModel.finalizeConnections();
 
     //OpenSim::PrescribedController *handleController = dynamic_cast<PrescribedController*>(&osimModel.updControllerSet()[0]);
-
-    //std::cout << handleController->getName() << std::endl;
     //FunctionSet &funcSet = handleController->upd_ControlFunctions();
     //for(int i=0; i<numActuators; i++){
+    //    double time = 0;
     //    PiecewiseConstantFunction *func = dynamic_cast<PiecewiseConstantFunction*>(&funcSet[i]);
     //    for(int j=0; j<segs ; j++){
-    //        func->setY(j, coeffs[i*segs+j]/2);
+    //        time += vecVars[2*i*segs+j];
+    //        func->setX(j, time);
+    //        func->setY(j, vecVars[(2*i+1)*segs+j]);
     //    }
     //}
 
@@ -98,7 +90,7 @@ int main()
     ///////////////////////////////////////////
 
     Manager manager(osimModel);
-    manager.setIntegratorAccuracy(desired_accuracy);
+    manager.setIntegratorAccuracy(desiredAccuracy);
 
     // Integrate from initial time to final time.
     si.setTime(initialTime);
