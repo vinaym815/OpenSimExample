@@ -1,15 +1,15 @@
-/* -------------------------------------------------------------------------- *
- *  Example of OpenSim Optimization routine.  In this code the horizontal 
- *  velocity of the hand at the end of simulation is maximized.
- *  The variables are the muscle activation targets, i.e. both the activation levels
- *  and their respective time intervals.
+﻿/* -------------------------------------------------------------------------- *
+ *  Example of an OpenSim Optimization routine.  
+ *  In this code the horizontal velocity of the hand at the final time step is  
+ *  is maximized. The variables for the problem are the muscle activation targets
+ *  i.e. both the activation levels and their respective time intervals.
  */
 
 //==============================================================================
 #include <OpenSim/OpenSim.h>
 #include "OpenSim/Common/STOFileAdapter.h"
 
-// Global variables to define integration time window, optimizer step count,
+// Global variables used to define integration time window, optimizer step count,
 // the best solution. 
 int stepCount = 0;
 const double initialTime = 0.0;
@@ -20,9 +20,9 @@ double bestSoFar = SimTK::Infinity;
 // The number of segments muscle activation function is made up of 
 const int segs = 2;
 
-// Initial gusses of muscle activation and the corresponsing time intervals
-const double dT0[segs] = {0.09, 0.02};
-const double aL0[segs] = {0.2, 0.8};
+// Initial gusses of muscle activation levels and the corresponsing time intervals
+const double dT0[segs] = {0.1, 0.1};
+const double aL0[segs] = {0.3, 0.3};
 
 class ExampleOptimizationSystem : public SimTK::OptimizerSystem {
 public:
@@ -40,7 +40,7 @@ public:
         // make a copy of the initial states
         SimTK::State s = si;
 
-        // Update the control values
+        // Updating the values of the control function
         OpenSim::PrescribedController *muscleController = dynamic_cast<OpenSim::PrescribedController*>(&osimModel.updControllerSet()[0]);
         OpenSim::FunctionSet &funcSet = muscleController->upd_ControlFunctions();
 
@@ -132,7 +132,6 @@ int main()
         // Consists of times and activation muscle by muscle, i.e.:
         // Variables = (M1t1 M1t2 M1t3 ....  M1tSegs  M1a1 M1a2 ...... M1aSeg M2t1......)
         SimTK::Vector vecVars(numVars);
-
         for(int i=0; i<(int)numActuators; i++){
             for(int j=0; j<segs; j++){
                 vecVars[2*i*segs+j] = dT0[j];
@@ -143,6 +142,7 @@ int main()
         OpenSim::PrescribedController *muscleController = new OpenSim::PrescribedController();
         muscleController->setActuators(osimModel.updActuators());
 
+        // Adding the muscle activation target functions
         for(int i=0; i<numActuators; i++){
             muscleController->prescribeControlForActuator( actuators[i].getName(), 
                                 new OpenSim::PiecewiseConstantFunction(segs, &vecVars[2*i*segs], 
@@ -193,8 +193,8 @@ int main()
                 lower_bounds[(2*i+1)*segs+j] = 0.01;
                 upper_bounds[2*i*segs+j] = 0.12;
                 upper_bounds[(2*i+1)*segs+j] = 0.99;
-                initStepSize[2*i*segs+j] = 0.02;
-                initStepSize[(2*i+1)*segs+j] = 0.05;
+                initStepSize[2*i*segs+j] = 0.04;
+                initStepSize[(2*i+1)*segs+j] = 0.1;
             }
         }
         sys.setParameterLimits( lower_bounds, upper_bounds );
@@ -203,17 +203,20 @@ int main()
         // and the name of the optimization algorithm.
         // Docs: https://simbody.github.io/simbody-3.6-doxygen/api/classSimTK_1_1Optimizer.html
 
-        //SimTK::Optimizer opt(sys, SimTK::InteriorPoint);
-        //SimTK::Optimizer opt(sys, SimTK::LBFGS);
-        //SimTK::Optimizer opt(sys, SimTK::LBFGSB);
     
         SimTK::Optimizer opt(sys, SimTK::CMAES);
         opt.setAdvancedVectorOption("init_stepsize", initStepSize);
-
-        // To-Do Try to get run parllel optimization
-        //opt.setAdvancedStrOption("parallel", "multithreading");
-        //opt.setAdvancedIntOption("nthreads", 4);
         //opt.setAdvancedIntOption("popsize", 200);
+
+        // To-Do Make the objective function thread safe 
+        // And run the optimization in parallel
+        // Present Error (Segmentation fault (core dumped))
+        // opt.setAdvancedStrOption("parallel", "multithreading");
+        // opt.setAdvancedIntOption("nthreads", 4);
+
+        //SimTK::Optimizer opt(sys, SimTK::InteriorPoint);
+        //SimTK::Optimizer opt(sys, SimTK::LBFGS);
+        //SimTK::Optimizer opt(sys, SimTK::LBFGSB);
 
         // Specify settings for the optimizer
         opt.setConvergenceTolerance(0.0001);
@@ -223,19 +226,20 @@ int main()
 
         opt.setDiagnosticsLevel(3);
 
-        std::cout << "Now running the optimization" << std::endl;
         // Optimize it!
         f = opt.optimize(vecVars);
 
         std::cout << "Finished Optimization" << std::endl;
+
         /////////////////////////////////////
         //// Simulating best results ////////
         /////////////////////////////////////
 
-        std::cout << "Press Enter To Run"  << std::endl;
+        std::cout << "Press Enter to run the optimized simulation"  << std::endl;
         std::cout << std::cin.get();
 		osimModel.setUseVisualizer(true);
 
+        // Updating the activations targets to the one corresponsing to the best result
         OpenSim::FunctionSet &funcSet = muscleController->upd_ControlFunctions();
         for(int i=0; i<funcSet.getSize(); i++){
             OpenSim::PiecewiseConstantFunction *func = dynamic_cast<OpenSim::PiecewiseConstantFunction*>(&funcSet[i]);
@@ -247,33 +251,34 @@ int main()
             }
         }
 
-       OpenSim::Manager manager(osimModel);
-       manager.setIntegratorAccuracy(desiredAccuracy);
-       si.setTime(initialTime);
-       manager.initialize(si);
-       si = manager.integrate(finalTime);
+        // Running the simulation
+        OpenSim::Manager manager(osimModel);
+        manager.setIntegratorAccuracy(desiredAccuracy);
+        si.setTime(initialTime);
+        manager.initialize(si);
+        si = manager.integrate(finalTime);
 
-       std::cout << "\nMaximum hand velocity = " << -f << "m/s" << std::endl;
-       std::cout << "OpenSim example completed successfully." << std::endl;
+        std::cout << "\nMaximum hand velocity = " << -f << "m/s" << std::endl;
+        std::cout << "OpenSim example completed successfully." << std::endl;
 
-       // Dump out optimization results to a text file for testing
-       std::ofstream ofile;
-       ofile.open("Arm26_optimization_result.txt");
-       for(int i=0; i<numActuators; i++){
-            for (int j=0; j<segs; j++){
-                ofile << vecVars[2*i*segs+j] << " ";
-            }
-            ofile << std::endl;
-            for (int j=0; j<segs; j++){
-                ofile << vecVars[(2*i+1)*segs+j] << " ";
-            }
-            ofile << std::endl << std::endl;
-       }
-       ofile << -f << std::endl;
-       ofile.close();
-       auto statesTable = manager.getStatesTable();
-       OpenSim::STOFileAdapter_<double>::write(statesTable,
-                                      "Arm26_optimized_states.sto");
+        // Dump out optimization results to a text file for testing
+        std::ofstream ofile;
+        ofile.open("Arm26_optimization_result.txt");
+        for(int i=0; i<numActuators; i++){
+             for (int j=0; j<segs; j++){
+                 ofile << vecVars[2*i*segs+j] << " ";
+             }
+             ofile << std::endl;
+             for (int j=0; j<segs; j++){
+                 ofile << vecVars[(2*i+1)*segs+j] << " ";
+             }
+             ofile << std::endl << std::endl;
+        }
+        ofile << -f << std::endl;
+        ofile.close();
+        auto statesTable = manager.getStatesTable();
+        OpenSim::STOFileAdapter_<double>::write(statesTable,
+                                       "Arm26_optimized_states.sto");
     }
     catch (const std::exception& ex)
     {
