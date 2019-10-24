@@ -183,44 +183,58 @@ int main()
         // Defining the bounds for optimization varibles 
         SimTK::Vector lower_bounds(numVars);
         SimTK::Vector upper_bounds(numVars);
+
+        // Standard deviations for the CMAES algorithm
+        SimTK::Vector initStepSize(numVars); 
+
         for(int i=0; i<(int)numActuators; i++){
             for(int j=0; j<segs; j++){
                 lower_bounds[2*i*segs+j] = 0.01;
                 lower_bounds[(2*i+1)*segs+j] = 0.01;
                 upper_bounds[2*i*segs+j] = 0.12;
                 upper_bounds[(2*i+1)*segs+j] = 0.99;
+                initStepSize[2*i*segs+j] = 0.02;
+                initStepSize[(2*i+1)*segs+j] = 0.05;
             }
         }
-
         sys.setParameterLimits( lower_bounds, upper_bounds );
 
         // Create an optimizer. Pass in our OptimizerSystem
         // and the name of the optimization algorithm.
-        //SimTK::Optimizer opt(sys, SimTK::LBFGS);
-        SimTK::Optimizer opt(sys, SimTK::LBFGSB);
-        //SimTK::Optimizer opt(sys, SimTK::CMAES);
+        // Docs: https://simbody.github.io/simbody-3.6-doxygen/api/classSimTK_1_1Optimizer.html
+
         //SimTK::Optimizer opt(sys, SimTK::InteriorPoint);
+        //SimTK::Optimizer opt(sys, SimTK::LBFGS);
+        //SimTK::Optimizer opt(sys, SimTK::LBFGSB);
+    
+        SimTK::Optimizer opt(sys, SimTK::CMAES);
+        opt.setAdvancedVectorOption("init_stepsize", initStepSize);
+
+        // To-Do Try to get run parllel optimization
+        //opt.setAdvancedStrOption("parallel", "multithreading");
+        //opt.setAdvancedIntOption("nthreads", 4);
+        //opt.setAdvancedIntOption("popsize", 200);
 
         // Specify settings for the optimizer
         opt.setConvergenceTolerance(0.0001);
-        opt.useNumericalGradient(true, desiredAccuracy);
-        opt.setMaxIterations(40);
-        opt.setLimitedMemoryHistory(50);
-        opt.setAdvancedStrOption("parallel ","multithreading");
-        opt.setAdvancedIntOption("nthreads", 4);
+        //opt.useNumericalGradient(true, desiredAccuracy);
+        //opt.setMaxIterations(4);
+        //opt.setLimitedMemoryHistory(10);
+
         opt.setDiagnosticsLevel(3);
 
         std::cout << "Now running the optimization" << std::endl;
         // Optimize it!
         f = opt.optimize(vecVars);
 
+        std::cout << "Finished Optimization" << std::endl;
         /////////////////////////////////////
         //// Simulating best results ////////
         /////////////////////////////////////
 
         std::cout << "Press Enter To Run"  << std::endl;
         std::cout << std::cin.get();
-		osimModel.setUseVisualizer(false);
+		osimModel.setUseVisualizer(true);
 
         OpenSim::FunctionSet &funcSet = muscleController->upd_ControlFunctions();
         for(int i=0; i<funcSet.getSize(); i++){
