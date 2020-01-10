@@ -87,13 +87,15 @@ int main(int argc, const char* argv[])
 
     //forceReporter->getForceStorage().print("ForceData.mot");
 
-    auto ForceData = forceReporter->getForcesTable().getMatrix();
+    const OpenSim::TimeSeriesTable &ForceTable = forceReporter->getForcesTable();
+    const SimTK::MatrixView &ForceData = ForceTable.getMatrix();
     int nRow =  ForceData.nrow(); 
     int nCol = ForceData.ncol(); 
 
     for(int j=0; j<nCol; j++){
-      std::cout << ForceData.getAnyElt(nRow-1, j) << std::endl;
+      std::cout << ForceData.getAnyElt(nRow-1, j) << ", ";
     }
+    std::cout << std::endl;
 
     //// Getting the equilibrium height and setting it to default
     //auto &pelvisYCoordinate = coodSet[2];
