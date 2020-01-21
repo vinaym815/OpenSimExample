@@ -116,7 +116,7 @@ int main()
         // Create a new OpenSim model. This model is similar to the arm26 model,
         // but without wrapping surfaces for better performance.
         OpenSim::Model osimModel("Arm26_Optimize.osim");
-		osimModel.setUseVisualizer(false);
+		osimModel.setUseVisualizer(true);
 
         /////////////////////////////////////
         /////// Adding new controller //////
@@ -159,6 +159,7 @@ int main()
         // Initialize the system and get the state representing the state system
         SimTK::State& si = osimModel.initSystem();
 
+
         // Initialize the starting shoulder angle.
         const OpenSim::CoordinateSet& coords = osimModel.getCoordinateSet();
         coords.get("r_shoulder_elev").setValue(si, -1.57079633);
@@ -172,6 +173,12 @@ int main()
 
         // Make sure the muscles states are in equilibrium
         osimModel.equilibrateMuscles(si);
+
+        auto &modelVisualizer = osimModel.updVisualizer();
+        const std::string geometryDir = "../geometry/";
+        //const std::string geometryDir = "/home/vinay/Repos/OpenSimExample/OptimizationExample/build/geometry";
+
+        modelVisualizer.addDirToGeometrySearchPaths(geometryDir);
 
         ///////////////////////////
         ///// Optimization ////////
