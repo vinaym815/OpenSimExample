@@ -3,7 +3,7 @@ project(OpenSimTut3,)
 cmake_minimum_required(VERSION 3.2)
 
 ## Lab_PC 	Lab_Linux	Laptop_PC	Laptop_Linux
-set(COMPUTER_SYSTEM "Lab_Linux")
+set(COMPUTER_SYSTEM "Lab_PC")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build)

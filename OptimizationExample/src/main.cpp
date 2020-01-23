@@ -116,7 +116,7 @@ int main()
         // Create a new OpenSim model. This model is similar to the arm26 model,
         // but without wrapping surfaces for better performance.
         OpenSim::Model osimModel("Arm26_Optimize.osim");
-		osimModel.setUseVisualizer(false);
+		osimModel.setUseVisualizer(true);
 
         /////////////////////////////////////
         /////// Adding new controller //////
@@ -158,6 +158,10 @@ int main()
 
         // Initialize the system and get the state representing the state system
         SimTK::State& si = osimModel.initSystem();
+        
+        auto &modelVisualizer = osimModel.updVisualizer();
+        const std::string geometryDir = "./geometry";
+        modelVisualizer.addDirToGeometrySearchPaths(geometryDir);
 
         // Initialize the starting shoulder angle.
         const OpenSim::CoordinateSet& coords = osimModel.getCoordinateSet();
@@ -208,21 +212,13 @@ int main()
         opt.setAdvancedVectorOption("init_stepsize", initStepSize);
         //opt.setAdvancedIntOption("popsize", 200);
 
-        // To-Do Make the objective function thread safe 
-        // And run the optimization in parallel
-        // Present Error (Segmentation fault (core dumped))
-        // opt.setAdvancedStrOption("parallel", "multithreading");
-        // opt.setAdvancedIntOption("nthreads", 4);
-
         //SimTK::Optimizer opt(sys, SimTK::InteriorPoint);
         //SimTK::Optimizer opt(sys, SimTK::LBFGS);
         //SimTK::Optimizer opt(sys, SimTK::LBFGSB);
 
         // Specify settings for the optimizer
         opt.setConvergenceTolerance(0.0001);
-        //opt.useNumericalGradient(true, desiredAccuracy);
         //opt.setMaxIterations(4);
-        //opt.setLimitedMemoryHistory(10);
 
         opt.setDiagnosticsLevel(3);
 
