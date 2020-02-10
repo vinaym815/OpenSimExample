@@ -3,7 +3,7 @@ project(GitHubExample,)
 cmake_minimum_required(VERSION 3.2)
 
 ## Lab_PC 	Lab_Linux	Laptop_PC	Laptop_Linux
-set(COMPUTER_SYSTEM "Lab_PC")
+set(COMPUTER_SYSTEM "Laptop_PC")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build)
@@ -43,7 +43,7 @@ elseif (COMPUTER_SYSTEM STREQUAL "Laptop_PC")
 endif()
 
 	
-add_executable(main ${PROJECT_SOURCE_DIR}/main.cpp)
+add_executable(main ${PROJECT_SOURCE_DIR}/modifyGait2354.cpp)
 
 target_link_libraries( main
 debug osimActuators_d optimized osimActuators 
