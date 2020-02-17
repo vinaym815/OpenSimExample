@@ -16,3 +16,4 @@ build/err.log
 build/out.log
 build/main.ilk
 build/main.pdb
+build/.cmake/

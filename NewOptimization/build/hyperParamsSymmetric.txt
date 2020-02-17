@@ -6,3 +6,5 @@
 0.35
 # population
 30
+# Cost Weights
+1000,100,0,0,1,0

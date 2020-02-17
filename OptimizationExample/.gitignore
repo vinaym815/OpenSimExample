@@ -1,4 +1,5 @@
 /CMakeFiles
+CMakeLists.txt
 CMakeCache.txt
 cmake_install.cmake
 Makefile
@@ -16,3 +17,8 @@ build/err.log
 build/out.log
 build/main.ilk
 build/main.pdb
+build/actparcmaes.par
+build/allcmaes.dat
+build/errcmaes.err
+build/result/*sto
+build/.cmake/

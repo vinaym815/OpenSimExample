@@ -109,6 +109,9 @@ private:
 int main()
 {
     try {
+
+        OpenSim::ModelVisualizer::addDirToGeometrySearchPaths("../../Geometry");
+
         // Use Millard2012Equilibrium muscles with rigid tendons for better
         // performance.
         OpenSim::Object::renameType("Thelen2003Muscle", "Millard2012EquilibriumMuscle");
@@ -158,11 +161,6 @@ int main()
 
         // Initialize the system and get the state representing the state system
         SimTK::State& si = osimModel.initSystem();
-        
-        auto &modelVisualizer = osimModel.updVisualizer();
-        const std::string geometryDir = "./geometry";
-        modelVisualizer.addDirToGeometrySearchPaths(geometryDir);
-
 
         // Initialize the starting shoulder angle.
         const OpenSim::CoordinateSet& coords = osimModel.getCoordinateSet();
@@ -178,15 +176,11 @@ int main()
         // Make sure the muscles states are in equilibrium
         osimModel.equilibrateMuscles(si);
 
-        auto &modelVisualizer = osimModel.updVisualizer();
-        const std::string geometryDir = "../geometry/";
-        //const std::string geometryDir = "/home/vinay/Repos/OpenSimExample/OptimizationExample/build/geometry";
-
-        modelVisualizer.addDirToGeometrySearchPaths(geometryDir);
 
         ///////////////////////////
         ///// Optimization ////////
         ///////////////////////////
+
         // Initialize the optimizer system we've defined.
         ExampleOptimizationSystem sys(numVars, si, osimModel);
         SimTK::Real f = SimTK::NaN;

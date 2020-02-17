@@ -1,0 +1,15 @@
+objective evaluation #: 0 bestSoFar = 1.88576e+255
+Weighted Costs:	3.80121e+194,	1.10634e+225,	1.14607e+175,	2.46591e-150,	1.88576e+255,	1.11346e+180
+Diff Costs:	0.536501,	17.8752,	0.269678,	106.537,	323.445,	0.261254
+objective evaluation #: 0 bestSoFar = 9.36888e+179
+Weighted Costs:	536.559,	675.534,	0,	0,	543.315,	9.36888e+179
+Diff Costs:	0.536559,	6.75534,	0.129956,	53.9306,	543.315,	0.219825
+objective evaluation #: 0 bestSoFar = 8.44722e+179
+Weighted Costs:	526.869,	1996.83,	0,	0,	543.298,	8.44722e+179
+Diff Costs:	0.526869,	19.9683,	0.0663198,	22.7516,	543.298,	0.1982
+objective evaluation #: 0 bestSoFar = 2466.74
+Weighted Costs:	531.283,	1439.95,	0,	0,	495.516,	0
+Diff Costs:	0.531283,	14.3995,	0.0430492,	11.9632,	495.516,	0.254383
+objective evaluation #: 1 bestSoFar = 2106.69
+Weighted Costs:	528.282,	979.421,	0,	0,	598.99,	0
+Diff Costs:	0.528282,	9.79421,	0.280697,	119.649,	598.99,	0.218213
