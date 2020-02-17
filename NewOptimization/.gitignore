@@ -21,3 +21,4 @@ build/actparcmaes.par
 build/allcmaes.dat
 build/errcmaes.err
 build/result/*sto
+build/.cmake/

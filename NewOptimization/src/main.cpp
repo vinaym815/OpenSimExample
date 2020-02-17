@@ -1,305 +1,173 @@
 ﻿/* -------------------------------------------------------------------------- *
- *  Example of an OpenSim Optimization routine.  
- *  In this code we try to emulate the results of SCONE high jump exmaple 
- *  and match the results
- *  The variables for the problem are the muscle excitations 
- *  i.e. both the excitation levels and their respective time intervals.
+ *  Used to synthesize High Jump from sitting posture
+ *  The variables for the problem are the muscle excitations levels
+ *  There is an assumption of symmetry. Symmetry is achieved by providing same values
+ *  to the left and right leg muscle excitation functions. 
+ *  Debugging: 1) Try different initial values (CMAES might be stuck in initialization)
+ *             2) Upd and Get functions provide reference and const reference respectively.
+ *                Make sure you are using them correctly.
  */
-
 //==============================================================================
-#include "OpenSim/OpenSim.h"
 #include "OpenSim/Common/STOFileAdapter.h"
-#include <queue>
+#include "OpenSim/OpenSim.h"
 #include <mutex>
+#include <math.h>
 
-// Global variables used to define integration time window, optimizer step count,
-// the best solution. 
-int stepCount = 0;
-const double initialTime = 0.0;         // Time at the start of simulation
-const double maxFinalTime = 1.5;        // Maximum Simulation duration
-
-// Standard deviations for time steps and muscle excitations for CMAES
-const double stdDevDt = 0.04;
-const double stdDevExt = 0.1;
-
-// Upper and lower limits of time steps and excitations 
-const double minDt = 0.01;
-const double minExt = 0.01;
-const double maxExt = 0.99;
-
-const double desiredAccuracy = 1.0e-5;      // Desired Integration Accuracy
-const double convTolerance = 1e-4;          // Convergance Tolerance for optimization
-const int maxIter = 1;                // Maximum number of iterations
-double bestSoFar = SimTK::Infinity;         // Value of the best simulation
+// # of weights and hyperparameters. They are used to check the validity of input files
+const int numHyperParams = 4;
 
 // Number of threads used by the optimizer
-const int numThreads = std::thread::hardware_concurrency();                   
+const int numThreads = 4;                   // For debugging purposes
 
-// Number of actuators and segments inside excitatio profile;
+const double reportInterval = 0.05;         // Reporting Interval of table reporters(secs) 
+const double desiredAccuracy = 1.0e-4;      // Desired Integration Accuracy
+const double convTolerance = 1e-4;          // Convergance Tolerance for optimization
+const int maxIter = 10000;                  // Maximum number of iterations
+double bestSoFar = SimTK::Infinity;         // Initial value of the cost function
+
+// Number of actuators the model has and the number of segments their excitatio profile is made of;
 int numActuators, segs;
+double simulationDuration;
 
-// Whether to resume optimization or not. Can be reset in the main function
+// Visualization Flag and iteration counter
 bool visualize;
+int stepCount = 0;
 
-// Lock for accessing queue and saving file
+// Lock used for accessing a unique index to the human model and associated functions
 std::mutex queueLock;
 
-// Queue of jobs;
-std::queue<int> Queue;
+// Function used to read files with numerical values
+void fileReader(std::string fileName, SimTK::Vector &vecOutput){
+    // Vector containing the initial guesses
+    std::fstream fin;
+    fin.open(fileName, std::ios::in);
+    std::string line, value;
+    int i=0;
+    while(std::getline(fin,line)){
+        if(line[0] != '#'){
+            std::stringstream s(line);
+            while(std::getline(s,value,',')){
+                vecOutput[i] = stod(value);
+                ++i;
+            }
+        }
+    }
+    fin.close();
+    // Checking if the file provided appropriate amount of data
+    if(i != vecOutput.size()){
+        std::cout << fileName <<  " do not have correct data" << std::endl;
+    }
+}
 
-///////////////////////////////////////
-/////// Optimization Class ///////////
-///////////////////////////////////////
 
-// The constructor creates arrays of pointers
-// The threads during objective evalution use these pointers
-// Queue is used to ensure that each thread uses different set of pointers
+// Custom Optimization Class.
 class CustomOptimizationSystem : public SimTK::OptimizerSystem {
 
 private:
-    OpenSim::Model **arrayModels;
-    SimTK::State **arrayInitialState;
-
-    // Table reporters and Function arrays are created to avoid 
-    // dynamic casting during objective evalutaiton
-    OpenSim::TableReporterVec3 **arrayComReporters;
-    OpenSim::TableReporter **arrayPelvisReporters;
-    OpenSim::PiecewiseConstantFunction ***arrayExtFuncs;
-
-    // These three arrays are only used for memory cleanup
-    OpenSim::PrescribedController **arrayMuscleCtrls;
-    double ***arrayVecTimes;
-    double ***arrayVecExts;
-
+    // Number of variables to be optimized
+    int numVars;
+    const std::string &modelName;
 public:
-    /* Constructor class. Parameters passed are accessed in the objectiveFunc() class. */
-    CustomOptimizationSystem(const std::string &modelName, const int numVars): OptimizerSystem(numVars){ 
-
-        // Array of model pointers
-        arrayModels = new OpenSim::Model *[numThreads];
-
-        // Array of initial state pointers
-        arrayInitialState = new SimTK::State *[numThreads];
-
-        // Array of com reporter pointers
-        arrayComReporters = new OpenSim::TableReporterVec3 *[numThreads];
-
-        // Array of pelvis tilt reporter pointers
-        arrayPelvisReporters = new OpenSim::TableReporter*[numThreads];
-
-        // Array of excitation functions to the different muscles
-        arrayExtFuncs = new OpenSim::PiecewiseConstantFunction **[numThreads];
-
-        // Memory clean up arrays
-        arrayMuscleCtrls = new OpenSim::PrescribedController *[numThreads];
-        arrayVecTimes = new double **[numThreads];
-        arrayVecExts = new double **[numThreads];
-
-        // Filling up the arrays
-        for(int i=0; i<numThreads; ++i){
-
-            // Creating the model
-            OpenSim::Model *osimModel = new OpenSim::Model(modelName);
-            osimModel->setUseVisualizer(visualize);
-
-            // Array to hold the pointers the excitation functions
-            OpenSim::PiecewiseConstantFunction **extFuncs= 
-                                new OpenSim::PiecewiseConstantFunction* [(size_t)numActuators];
-            
-            // Creating a controller for the model
-            OpenSim::PrescribedController *muscleController = new OpenSim::PrescribedController();
-
-            // Array of Actuators
-            OpenSim::Set<OpenSim::Actuator> &actuators = osimModel->updActuators();
-
-            // Adding actuators to the controller
-            muscleController->setActuators(actuators);
-
-            double ** vecPtTimes = new double *[(size_t)numActuators];
-            double ** vecPtExts = new double *[(size_t)numActuators];
-            // Setting up excitation patterns
-            for(int i=0; i<numActuators; i++){
-                double *vecTime = new double[segs];
-                double *vecExt = new double[segs];
-                OpenSim::PiecewiseConstantFunction* func = new OpenSim::PiecewiseConstantFunction(segs, 
-                                                                vecTime, vecExt, "ExcitationSignal");
-                muscleController->prescribeControlForActuator( actuators[i].getName(), func);
-                extFuncs[i] = func;
-                vecPtTimes[i] = vecTime;
-                vecPtExts[i] = vecExt;
-            }
-
-            // Creating a center of mass reporter 
-            OpenSim::TableReporterVec3 *comReporter = new OpenSim::TableReporterVec3();
-            comReporter->setName("comReporter");
-            comReporter->addToReport(osimModel->getOutput("com_position"), "COMPosition");
-            comReporter->set_report_time_interval(0.05);
-
-            // Creating a Pelvis Tilt reporter 
-            OpenSim::TableReporter *pelvisReporter = new OpenSim::TableReporter();
-            pelvisReporter->setName("pelvisReporter");
-            pelvisReporter->addToReport(osimModel->getComponent("/jointset/ground_pelvis/pelvis_tilt").getOutput("value"),
-                                            "pevlisTilt");
-            pelvisReporter->set_report_time_interval(0.05);
-
-
-            // Adding new components to the model
-            osimModel->addController(muscleController);
-            osimModel->addComponent(comReporter);
-            osimModel->addComponent(pelvisReporter);
-            osimModel->finalizeConnections();
-
-            // Initializing the system 
-            SimTK::State *si = new SimTK::State(osimModel->initSystem());
-
-            // Filling up the Pointer arrays
-            arrayModels[i] = osimModel;
-            arrayInitialState[i] = si;
-            arrayComReporters[i] = comReporter;
-            arrayPelvisReporters[i] = pelvisReporter;
-            arrayExtFuncs[i] = extFuncs;
-            arrayMuscleCtrls[i] = muscleController;
-            arrayVecTimes[i] = vecPtTimes;
-            arrayVecExts[i] = vecPtExts;
-            }
-        }
+    // The constructor creates arrays of pointers to the human models and associated functions
+    CustomOptimizationSystem(const std::string &modelName, const int numVars): OptimizerSystem(numVars), numVars(numVars), 
+    modelName(modelName){}
 
     int objectiveFunc(const SimTK::Vector &newControls,
         bool new_coefficients, SimTK::Real& f) const override {
-        
-        // Getting a unique index for the thread
+
         std::unique_lock<std::mutex> locker(queueLock);
-        int threadInd = Queue.front();
-        Queue.pop();
+        // Creating the model 
+        OpenSim::Model osimModel(modelName);
+        osimModel.setUseVisualizer(visualize);
         locker.unlock();
         
-        // Setting pointer to different objects for the unique index
-        OpenSim::Model *osimModel = arrayModels[threadInd];
-        SimTK::State *si = arrayInitialState[threadInd];
-        OpenSim::TableReporterVec3 *comReporter = arrayComReporters[threadInd];
-        OpenSim::TableReporter *pelvisReporter = arrayPelvisReporters[threadInd];
-        OpenSim::PiecewiseConstantFunction **extFuns = arrayExtFuncs[threadInd];
-        
-        // Making a copy of the initial state
-        SimTK::State s = *si;
+        // Open Loop controller for muscles
+        OpenSim::PrescribedController *muscleController = new OpenSim::PrescribedController();
 
-        // Updating the values of excitation patterns
-        double finalTime = 0;           // Simulation runtime
+        // Array of muscles within the model
+        OpenSim::Set<OpenSim::Actuator> &actuators = osimModel.updActuators();
+
+        // Passing the muscles to the controller
+        muscleController->setActuators(actuators);
+
+        // Updating the values of excitation patterns 
+        double dT = simulationDuration/segs;
+
+        // Setting up excitation patterns. The +1 is for initial state
         for(int i=0; i<numActuators; i++){
-            OpenSim::PiecewiseConstantFunction *func = extFuns[i];
+            double *vecTime = new double[segs+1];
+            double *vecExt = new double[segs+1];
+
+            // The initial time and muscle excitation levels
+            // The default muscle activation levels are set within the model
+            vecTime[0] = 0;
+            vecExt[0] = 0.01;
+
             double time = 0;
-            for(int j=0; j<segs ; j++){
-                time += newControls[2*i*segs+j];
-                func->setX(j, time);
-                func->setY(j, newControls[(2*i+1)*segs+j]);
+            int k = i;
+            if (i>=numActuators/2){
+                k = i-numActuators/2;
             }
-            if (time>finalTime){
-                finalTime = time;
+            for(int j=0; j<segs ; j++){               // +1 is offset to avoid changing initial value
+                time += dT;
+                vecTime[j+1] = time;
+                vecExt[j+1]  = newControls[k*segs+j];
             }
+
+            // Creating the excitation function
+            OpenSim::PiecewiseLinearFunction* func = new OpenSim::PiecewiseLinearFunction(segs+1, 
+                                                            vecTime, vecExt, "ExcitationSignal");
+            // Adding the excitation function to the actuator
+            muscleController->prescribeControlForActuator( actuators[i].getName(), func);
         }
 
-        // Integrating from initial time to the final time
-        OpenSim::Manager manager(*osimModel);
-        manager.setIntegratorAccuracy(desiredAccuracy);
-        s.setTime(initialTime);
-        manager.initialize(s);
-        manager.integrate(finalTime);
+        // Adding new components to the model
+        osimModel.addController(muscleController);
+        osimModel.finalizeConnections();
 
-        // Calculating the scalar quantity we want to maximize.
-        auto comTrajectory = comReporter->getTable().getDependentColumnAtIndex(0);
-        double maxHeight = 0;
-        for(int i=0; i<comTrajectory.nrow(); ++i){
-            if (comTrajectory[i][1] > maxHeight){
-                maxHeight = comTrajectory[i][1];
-            }
-        }
-        comReporter->clearTable();
+        // Initializing the system 
+        SimTK::State si = osimModel.initSystem();
+        si.setTime(0.0);
+        osimModel.equilibrateMuscles(si);
 
-        auto pelvisTiltData = pelvisReporter->getTable().getMatrix();
-        double penalty = 0;
-        for(int i=0; i<pelvisTiltData.nrow(); ++i){
-            double pelvisTilt = pelvisTiltData[i][0];
-            if((pelvisTilt > SimTK::Pi/6) || (pelvisTilt < -SimTK::Pi/36) ){
-                penalty += 0.01;
-            }
-        }
+        // Performing the forward simulation
+        OpenSim::Manager manager(osimModel);
+        //manager.setIntegratorAccuracy(desiredAccuracy);
+        manager.initialize(si);
 
-        pelvisReporter->clearTable();
-        ++stepCount;
+        si = manager.integrate(simulationDuration);
 
-        // Lock to make sure only one function is changing the best value
-        //std::lock_guard<std::mutex> locker(queueLock);
+        f = -osimModel.calcMassCenterPosition(si)[1];
+
+        // Engaging Lock
         locker.lock();
-
-        // Computing the cost function
-        f = -maxHeight+penalty;
-
         if(f < bestSoFar) {
             bestSoFar = f;
-            std::cout << "\nobjective evaluation #: " << stepCount <<  " bestSoFar = " << f << std::endl;
-
-            // Dumping the optimized results
-            std::ofstream ofile;
-            ofile.open("Jump_optimization_result.txt", std::ios::out);
-            for(int i=0; i<numActuators; ++i){
-                 for (int j=0; j<segs; ++j){
-                     ofile << newControls[2*i*segs+j] << ",";
-                     }
-                 for (int j=0; j<segs; ++j){
-                     ofile << newControls[(2*i+1)*segs+j];
-                     if(j<segs-1){
-                         ofile << ",";
-                     }
-                 }
-                 ofile << "\n";
-            }
-            ofile.close();
+            std::cout << stepCount << ": " << -f << " meters" << std::endl;
         }
 
-        // Adding the unique index back to queue for use by the other threads
-        Queue.push(threadInd);
+        auto statesTable = manager.getStatesTable();
+        OpenSim::STOFileAdapter_<double>::write(statesTable, std::to_string(stepCount)+".sto");
+        // Updating Step Size
+        ++stepCount;
+
+        // Releasing the theread lock
         locker.unlock();
         return 0;
     }
-    ~CustomOptimizationSystem(){
-        // If we delete the model do its newly added component also get deleted ?
-        for(int i=0; i<numThreads; ++i){
-            delete arrayModels[i];
-            delete arrayInitialState[i];
-            //delete arrayMuscleCtrls[i];
-            //delete arrayComReporters[i];
-            //delete arrayPelvisReporters[i];
 
-            for (int j=0; j<numActuators; ++j){
-                //delete arrayExtFuncs[i][j];
-                delete[] arrayVecTimes[i][j];
-                delete[] arrayVecExts[i][j];
-            }
-            delete[] arrayExtFuncs[i];
-            delete[] arrayVecTimes[i];
-            delete[] arrayVecExts[i];
-        }
-        delete[] arrayModels;
-        delete[] arrayInitialState;
-        delete[] arrayMuscleCtrls;
-        delete[] arrayComReporters;
-        delete[] arrayPelvisReporters;
-        delete[] arrayExtFuncs;
-        delete[] arrayVecTimes;
-        delete[] arrayVecExts;
-    }
 };
 
-/**
- * Defines an optimization problem that computes a set of muscle excitation pattern
- * which maximizes the jump height which avoiding too much pelvis tilt.
+/*
+ * Defining the optimization problem that computes a set of muscle excitation pattern
+ * for high jump 
  */
 int main(int argc, const char *argv[])
 {
     try {
         if (argc != 5){
             std::cout << "Inappropriate number of function arguments" << std::endl;
-            std::cout << "Correct Format: funcName modelName initialGuessFile visualize(true/false) segments" 
+            std::cout << "Correct Format: funcName.exe modelName.osim initialGuessFile.txt hyperParametersFile.txt visualize(true/false)" 
                       << std::endl;
             exit(1);
         }
@@ -307,91 +175,64 @@ int main(int argc, const char *argv[])
         // Name of the model
         const std::string modelName = argv[1];
 
-        // File containing the initial guess of excitation pattern
-        const std::string initialGuess = argv[2]; 
+        // File containing the initial guess for the excitation pattern
+        const std::string initialGuessFile = argv[2]; 
+
+        // File containing the hyperparameters
+        const std::string hyperParamFile = argv[3];
 
         // Visualize Flag
-        if ((std::string)argv[3] == "true"){
+        if ((std::string)argv[4] == "true"){
             visualize = true;
         }
         else {
             visualize = false;
         }
 
-        segs = std::stoi(argv[4]);
+        // Vector containing the hyper parameters
+        SimTK::Vector hyperParamsVec(numHyperParams);
+        fileReader(hyperParamFile, hyperParamsVec);
+
+        // Simulation Duration
+        simulationDuration = hyperParamsVec[0];
+
+        // Number of segments in the excitation profile
+        segs = int(hyperParamsVec[1]);
+
+        // Adding the geometry directory to the search path
+        OpenSim::ModelVisualizer::addDirToGeometrySearchPaths("../../Geometry");
 
         // Gettings the number of actuators
         OpenSim::Model osimModel(modelName);
         numActuators = osimModel.getActuators().getSize();
-        int numVars = 2*segs*numActuators;
 
-        ///////////////////////////////////
-        //// Loading the Initial values//// 
-        ///////////////////////////////////
+        // Number of variables
+        int numVars = segs*numActuators/2;                    
+
+        // Vector containing the initial guesses
         SimTK::Vector vecVars(numVars);
-        {
-            std::fstream fin;
-            fin.open(initialGuess, std::ios::in);
+        fileReader(initialGuessFile, vecVars);
 
-            std::string temp, value;
-            int i = 0, j=0;
-            while(fin >> temp){
-                std::stringstream s(temp);
-                j = 0;
-                while (std::getline(s, value, ',')){
-                    vecVars[2*i*segs+j] = stod(value);
-                    ++j;
-                }
-                ++i;
-            }
-            // Checking if the file provided appropriate amount of data
-            if((i != numActuators)||(j/2 != segs)){
-                std::cout << "The resume file doesn't has correct amount of data" << std::endl;
+        //// Standard deviations for the CMAES algorithm
+        SimTK::Vector initStepSize(numVars);
+        //// Filling standard deviations array
+        for(int i=0; i<numActuators/2; i++){
+            for(int j=0; j<segs; j++){
+                initStepSize[i*segs+j] = hyperParamsVec[2];            // Standard deviation of muscle excitations
             }
         }
-
-        /////////////////////////////
-        //// Optimization Setup /////
-        /////////////////////////////
 
         // Initialize the optimizer system we've defined.
         CustomOptimizationSystem sys(modelName, numVars);
         SimTK::Real f = SimTK::NaN;
 
-        // Defining the bounds for optimization varibles 
-        SimTK::Vector lower_bounds(numVars);
-        SimTK::Vector upper_bounds(numVars);
-
-        //// Standard deviations for the CMAES algorithm
-        SimTK::Vector initStepSize(numVars); 
-
-        const double maxDt = (maxFinalTime/segs)-0.001;
-        //// Filling up the bounds and standard deviations
-        for(int i=0; i<(int)numActuators; i++){
-            for(int j=0; j<segs; j++){
-                lower_bounds[2*i*segs+j] = minDt;                // Lower bound of time step
-                lower_bounds[(2*i+1)*segs+j] = minExt;            // Lower bound of muscle excitation
-                upper_bounds[2*i*segs+j] = maxDt;                // Upper bound of time step
-                upper_bounds[(2*i+1)*segs+j] = maxExt;            // Upper bound of muscle excitation
-                initStepSize[2*i*segs+j] = stdDevDt;                // Standard deviation of time steps
-                initStepSize[(2*i+1)*segs+j] = stdDevExt;             // Standard deviation of muscle excitations
-            }
-        }
-
-        // Setting up the upper and lower bounds
-        sys.setParameterLimits( lower_bounds, upper_bounds );
-
-        // Create an optimizer. Pass in our OptimizerSystem
-        // and the name of the optimization algorithm.
         // Docs: https://simbody.github.io/simbody-3.6-doxygen/api/classSimTK_1_1Optimizer.html
         SimTK::Optimizer opt(sys, SimTK::CMAES);
         opt.setAdvancedVectorOption("init_stepsize", initStepSize);
-        //opt.setAdvancedIntOption("popsize", 50);
-
-        // Creating Queue of jobs
-        for(int i=0; i<numThreads; ++i){
-            Queue.push(i);
-        }
+        opt.setAdvancedIntOption("popsize", hyperParamsVec[3]);
+        //opt.setAdvancedIntOption("seed", 42);
+        opt.setAdvancedRealOption("maxTimeFractionForEigendecomposition", 1);
+        opt.setDiagnosticsLevel(2);
 
         // Setting up the multithreading options
         opt.setAdvancedStrOption("parallel", "multithreading");
@@ -406,7 +247,6 @@ int main(int argc, const char *argv[])
         f = opt.optimize(vecVars);
 
         std::cout << "Finished Optimization" << std::endl << std::endl;
-
         std::cout << "Minimized Cost Function Value: " << -f << std::endl;
     }
     catch (const std::exception& ex)

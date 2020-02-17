@@ -1,0 +1,8 @@
+# STS Duration
+1.6
+# Segments the excitation profile is made up of 
+10
+# simulation Muscle Params: StdDevExcitation
+0.35
+# population
+30
