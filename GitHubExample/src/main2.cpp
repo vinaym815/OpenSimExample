@@ -19,6 +19,7 @@ class armModel{
         OpenSim::WrapCylinder* wrapCylinder1 = new OpenSim::WrapCylinder();
         wrapCylinder1->set_length(0.1);
         wrapCylinder1->set_radius(0.1);
+        wrapCylinder1->set_quadrant("+x");
         OpenSim::PhysicalOffsetFrame* wrapCylinderFrame1 = new OpenSim::PhysicalOffsetFrame("wrapCylinderFrame", *humerus, 
                                                                                     SimTK::Transform(SimTK::Vec3(0.14,0.3,0.0)));
         wrapCylinderFrame1->addWrapObject(wrapCylinder1);
@@ -72,16 +73,24 @@ class armModel{
     };
 
     void simulate(){
+
         SimTK::State si = osimModel.initSystem();
         si.setTime(0.0);
+
+        SimTK::Transform_<SimTK::Real> cameraTranform;
+        cameraTranform.setP(SimTK::Vec3(0,-0.5,2));
+        SimTK::Visualizer& viz = osimModel.updVisualizer().updSimbodyVisualizer();
+        viz.setBackgroundType(viz.SolidColor);
+        viz.setBackgroundColor(SimTK::White);
+        viz.setCameraTransform(cameraTranform);
 
         OpenSim::Coordinate *shoulder = dynamic_cast<OpenSim::Coordinate *>(&osimModel.updComponent("/jointset/shoulder/shoulder_coord_0"));
         shoulder->setLocked(si,SimTK::convertDegreesToRadians(90));
         OpenSim::Manager manager(osimModel);
         manager.initialize(si);
-        manager.integrate(6);
+        manager.integrate(30);
         auto stateTable = manager.getStatesTable();
-        OpenSim::STOFileAdapter_<double>::write( stateTable, "states.sto");
+        //OpenSim::STOFileAdapter_<double>::write( stateTable, "states.sto");
     };
 };
 
@@ -93,7 +102,11 @@ void DoWork(){
 int main()
 {
     std::thread t1(DoWork); 
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::thread t2(DoWork);
     t1.join();
+    t2.join();
+
     std::cout << "Everything went fine" << std::endl;
     return 0;
 };
