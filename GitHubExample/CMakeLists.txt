@@ -3,7 +3,7 @@ project(GitHubExample,)
 cmake_minimum_required(VERSION 3.2)
 
 ## Lab_PC 	Lab_Linux	Laptop_PC	Laptop_Linux
-set(COMPUTER_SYSTEM "Lab_PC")
+set(COMPUTER_SYSTEM "Lab_Linux")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build)
@@ -24,12 +24,12 @@ if (COMPUTER_SYSTEM STREQUAL "Lab_PC")
 		D:/openSim/opensim_dependencies_install/simbody/lib)
 elseif (COMPUTER_SYSTEM STREQUAL "Lab_Linux")
 	include_directories(
-		/home/vinay/OpenSim/opensim-source-install/include/OpenSim/ 
-		/home/vinay/OpenSim/opensim-source-install/include/simbody/ 
-		/home/vinay/OpenSim/opensim-source-install/include/)
+		/home/vinay/OpenSim/opensim_core_install/include/OpenSim/ 
+		/home/vinay/OpenSim/opensim_core_install/include/simbody/ 
+		/home/vinay/OpenSim/opensim_core_install/include/)
 
 	link_directories(
-		/home/vinay/OpenSim/opensim-source-install/lib64/)
+		/home/vinay/OpenSim/opensim_core_install/lib/)
 elseif (COMPUTER_SYSTEM STREQUAL "Laptop_PC")
 	include_directories(
 		D:/OpenSimAPI/opensim-core-source-install/sdk/include
@@ -42,8 +42,9 @@ elseif (COMPUTER_SYSTEM STREQUAL "Laptop_PC")
 	)
 endif()
 
+find_package (Threads)
 	
-add_executable(main ${PROJECT_SOURCE_DIR}/main.cpp)
+add_executable(main ${PROJECT_SOURCE_DIR}/main2.cpp)
 
 target_link_libraries( main
 debug osimActuators_d optimized osimActuators 
@@ -54,4 +55,5 @@ debug osimSimulation_d optimized osimSimulation
 debug osimTools_d optimized osimTools
 debug SimTKcommon_d optimized SimTKcommon
 debug SimTKmath_d optimized SimTKmath 
-debug SimTKsimbody_d optimized SimTKsimbody)
+debug SimTKsimbody_d optimized SimTKsimbody
+${CMAKE_THREAD_LIBS_INIT})
